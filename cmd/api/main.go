@@ -5,9 +5,13 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/everestp/ecom-go-api/internal/config"
+
 )
 
 func main() {
+	cfg := config.MustLoad()
 
 	mux := http.NewServeMux()
 
@@ -18,7 +22,7 @@ func main() {
 	})
 
 	srv := http.Server{
-		Addr:         ":8090",
+		Addr:         ":" + cfg.Env,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
