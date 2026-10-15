@@ -7,22 +7,24 @@ import (
 	"time"
 
 	"github.com/everestp/ecom-go-api/internal/config"
-
+	"github.com/everestp/ecom-go-api/internal/db"
+	"github.com/everestp/ecom-go-api/internal/handlers"
 )
 
 func main() {
 	cfg := config.MustLoad()
-
+	_, err := db.Connect(cfg.DatabaseUrl)
+	if err != nil {
+		log.Fatalf("main.db.connect : %v", err)
+	}
+	fmt.Println("database connected")
+	fmt.Println("Starting ecom server")
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	mux.HandleFunc("GET /health", handlers.Health)
 
 	srv := http.Server{
-		Addr:         ":" + cfg.Env,
+		Addr:         ":" + cfg.Port,
 		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
