@@ -3,12 +3,15 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/everestp/ecom-go-api/internal/config"
 	"github.com/everestp/ecom-go-api/internal/db"
 	"github.com/everestp/ecom-go-api/internal/handlers"
+	"github.com/everestp/ecom-go-api/internal/middleware"
 )
 
 func main() {
@@ -17,19 +20,27 @@ func main() {
 	if err != nil {
 		log.Fatalf("main.db.connect : %v", err)
 	}
+	logHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     slog.LevelInfo,
+	})
+	logger := slog.New(logHandler)
+	slog.SetDefault(logger)
 	fmt.Println("database connected")
 	fmt.Println("Starting ecom server")
 	mux := http.NewServeMux()
 
-	lh := handlers.NewListingHandler(db)
+	lh := handlers.NewListingHandler(db, logger)
 	mux.HandleFunc("GET /health", handlers.Health)
 	mux.HandleFunc("GET /listings", lh.List)
 
 	mux.HandleFunc("DELETE /listings/{id}", lh.Delete)
 
+	handler := middleware.RequestID(mux)
+
 	srv := http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

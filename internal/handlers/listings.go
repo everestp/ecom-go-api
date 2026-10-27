@@ -3,8 +3,11 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+
+	"log/slog"
 	"net/http"
+
+	"github.com/everestp/ecom-go-api/internal/middleware"
 )
 
 type listing struct {
@@ -17,12 +20,14 @@ type listing struct {
 }
 
 type ListingHandler struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *slog.Logger
 }
 
-func NewListingHandler(db *sql.DB) *ListingHandler {
+func NewListingHandler(db *sql.DB, logger *slog.Logger) *ListingHandler {
 	return &ListingHandler{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -37,7 +42,8 @@ func (lh *ListingHandler) List(w http.ResponseWriter, r *http.Request) {
 			LIMIT 100
 		`)
 	if err != nil {
-		log.Printf("query: %v", err)
+		// lh.logger.Error("query: %v", err)
+		lh.logger.Error("query: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -56,7 +62,7 @@ func (lh *ListingHandler) List(w http.ResponseWriter, r *http.Request) {
 			&l.City,
 			&l.CreatedAt,
 		); err != nil {
-			log.Printf("scan: %v", err)
+			lh.logger.Error("scan: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -65,7 +71,7 @@ func (lh *ListingHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Printf("rows: %v", err)
+		lh.logger.Error("rows: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
@@ -73,13 +79,16 @@ func (lh *ListingHandler) List(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(listings); err != nil {
-		log.Printf("encode: %v", err)
+		lh.logger.Error("encode: %v", err)
 	}
 }
 
 func (lh *ListingHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
+
+	// requestId := ctx.Value("requestCtxId").(string)
+	requestId := middleware.RequestIDFromContext(ctx)
 	id := r.PathValue("id")
 
 	result, err := lh.db.ExecContext(ctx,
@@ -87,14 +96,15 @@ func (lh *ListingHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		id,
 	)
 	if err != nil {
-		log.Printf("delete: %v", err)
+		lh.logger.Error("delete failed", "listing_id", id, "request_id", requestId, "err", err)
+
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		log.Printf("rows affected: %v", err)
+		lh.logger.Error("rows affected: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
