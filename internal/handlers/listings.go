@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"log/slog"
 	"net/http"
@@ -132,10 +133,17 @@ func (lh *ListingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := req.Validate(); err != nil {
+		var verr ValidationError
+		errors.As(err, &verr)
+		httpx.ValidationError(w, http.StatusUnprocessableEntity, err.Error(), httpx.CodeValidationFailed, verr.Field)
+		return
+	}
+
 	row := lh.db.QueryRowContext(ctx, `INSERT INTO listings (title , description , price ,city) VALUES ($1,$2,$3,$4) RETURNING id ,title ,created_at`, req.Title, req.Description, req.Price, req.City)
 	// var id string
 	var out CreateListingResponse
-	if err := row.Scan(&out.ID, out.Title, out.CreatedAt); err != nil {
+	if err := row.Scan(&out.ID, &out.Title, &out.CreatedAt); err != nil {
 		lh.logger.Error("failed to insert", "request_id", requestId, "err", err)
 		httpx.Error(w, http.StatusInternalServerError, "something went wrong", httpx.CodeInternalError)
 		return
